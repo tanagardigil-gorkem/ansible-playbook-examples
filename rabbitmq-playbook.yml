@@ -1,0 +1,51 @@
+---
+- name: Install and Configure RabbitMQ
+  hosts: all
+  become: true
+  tasks:
+    - name: Install EPEL
+      ansible.builtin.yum:
+        name: https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+        state: present
+
+    - name: Install RabbitMQ
+      ansible.builtin.yum:
+        name: rabbitmq-server
+        state: latest
+
+    - name: Enable Management Plugin
+      ansible.builtin.command: rabbitmq-plugins enable rabbitmq_management
+
+    - name: Enable STOMP Plugin
+      ansible.builtin.command: rabbitmq-plugins enable rabbitmq_stomp
+
+    - name: Start RabbitMQ service
+      ansible.builtin.service:
+        name: rabbitmq-server
+        state: started
+        enabled: yes
+
+    - name: Check if default user exists
+      ansible.builtin.shell: "rabbitmqctl list_users | grep -q '^root\\s'"
+      register: rabbitmq_default_user
+      changed_when: false
+      ignore_errors: true
+
+    - name: Create default user if not exists
+      ansible.builtin.shell: "rabbitmqctl add_user <username> <password>"
+      when: rabbitmq_default_user.rc != 0
+
+    - name: Set default user permissions
+      ansible.builtin.command: rabbitmqctl set_permissions -p / root ".*" ".*" ".*"
+
+    - name: Open ports 5672, 15672, 61613
+      iptables:
+        chain: INPUT
+        protocol: tcp
+        destination_port: "{{ item }}"
+        jump: ACCEPT
+        state: present
+      with_items:
+        - 5672
+        - 15672
+        - 61613

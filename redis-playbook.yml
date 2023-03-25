@@ -1,0 +1,32 @@
+- name: Install and Configure Redis
+  hosts: all
+  gather_facts: false
+  become: true
+  vars:
+    redis_port: 6379
+    redis_password: password
+  tasks:
+    - name: Install EPEL
+      ansible.builtin.yum:
+        name: https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+        state: present
+    - name: Install Redis Server
+      ansible.builtin.yum:
+        name: redis
+        state: present
+    - name: Update Redis configuration
+      ansible.builtin.lineinfile:
+        path: /etc/redis.conf
+        regexp: '^bind .*'
+        line: 'bind 127.0.0.1'
+      notify: restart redis-server
+
+    - name: Update Redis password
+      ansible.builtin.shell: redis-cli -a "" -h 127.0.0.1 -p {{ redis_port }} CONFIG SET requirepass "{{ redis_password }}"
+      changed_when: false
+
+  handlers:
+    - name: Restart Redis Server
+      ansible.builtin.service:
+        name: redis
+        state: restarted
